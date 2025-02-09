@@ -7,6 +7,7 @@ import {
   useSetRecoilState
 } from 'recoil';
 import io from 'socket.io-client';
+import { toast } from 'sonner';
 import {
   actionState,
   askUserState,
@@ -15,14 +16,17 @@ import {
   chatProfileState,
   chatSettingsInputsState,
   chatSettingsValueState,
+  commandsState,
   currentThreadIdState,
   elementState,
   firstUserInteraction,
   isAiSpeakingState,
   loadingState,
   messagesState,
+  resumeThreadErrorState,
   sessionIdState,
   sessionState,
+  sideViewState,
   tasklistState,
   threadIdToResumeState,
   tokenCountState,
@@ -31,6 +35,7 @@ import {
 } from 'src/state';
 import {
   IAction,
+  ICommand,
   IElement,
   IMessageElement,
   IStep,
@@ -64,7 +69,8 @@ const useChatSession = () => {
   const setMessages = useSetRecoilState(messagesState);
   const setAskUser = useSetRecoilState(askUserState);
   const setCallFn = useSetRecoilState(callFnState);
-
+  const setCommands = useSetRecoilState(commandsState);
+  const setSideView = useSetRecoilState(sideViewState);
   const setElements = useSetRecoilState(elementState);
   const setTasklists = useSetRecoilState(tasklistState);
   const setActions = useSetRecoilState(actionState);
@@ -72,6 +78,8 @@ const useChatSession = () => {
   const setTokenCount = useSetRecoilState(tokenCountState);
   const [chatProfile, setChatProfile] = useRecoilState(chatProfileState);
   const idToResume = useRecoilValue(threadIdToResumeState);
+  const setThreadResumeError = useSetRecoilState(resumeThreadErrorState);
+
   const [currentThreadId, setCurrentThreadId] =
     useRecoilState(currentThreadIdState);
 
@@ -194,6 +202,10 @@ const useChatSession = () => {
         );
       });
 
+      socket.on('resume_thread_error', (error?: string) => {
+        setThreadResumeError(error);
+      });
+
       socket.on('new_message', (message: IStep) => {
         setMessages((oldMessages) => addMessage(oldMessages, message));
       });
@@ -270,6 +282,34 @@ const useChatSession = () => {
         resetChatSettingsValue();
       });
 
+      socket.on('set_commands', (commands: ICommand[]) => {
+        setCommands(commands);
+      });
+
+      socket.on('set_sidebar_title', (title: string) => {
+        setSideView((prev) => {
+          return { title, elements: prev?.elements || [] };
+        });
+      });
+
+      socket.on('set_sidebar_elements', (elements: IMessageElement[]) => {
+        if (!elements.length) {
+          setSideView(undefined);
+        } else {
+          elements.forEach((element) => {
+            if (!element.url && element.chainlitKey) {
+              element.url = client.getElementUrl(
+                element.chainlitKey,
+                sessionId
+              );
+            }
+          });
+          setSideView((prev) => {
+            return { title: prev?.title || '', elements: elements };
+          });
+        }
+      });
+
       socket.on('element', (element: IElement) => {
         if (!element.url && element.chainlitKey) {
           element.url = client.getElementUrl(element.chainlitKey, sessionId);
@@ -324,6 +364,31 @@ const useChatSession = () => {
       socket.on('window_message', (data: any) => {
         if (window.parent) {
           window.parent.postMessage(data, '*');
+        }
+      });
+
+      socket.on('toast', (data: { message: string; type: string }) => {
+        if (!data.message) {
+          console.warn('No message received for toast.');
+          return;
+        }
+
+        switch (data.type) {
+          case 'info':
+            toast.info(data.message);
+            break;
+          case 'error':
+            toast.error(data.message);
+            break;
+          case 'success':
+            toast.success(data.message);
+            break;
+          case 'warning':
+            toast.warning(data.message);
+            break;
+          default:
+            toast(data.message);
+            break;
         }
       });
     },

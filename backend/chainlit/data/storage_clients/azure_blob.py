@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Union
 
 from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
@@ -22,6 +22,9 @@ class AzureBlobStorageClient(BaseStorageClient):
         self.service_client = AsyncBlobServiceClient.from_connection_string(
             connection_string
         )
+        self.container_client = self.service_client.get_container_client(
+            self.container_name
+        )
         logger.info("AzureBlobStorageClient initialized")
 
     async def get_read_url(self, object_key: str) -> str:
@@ -29,7 +32,7 @@ class AzureBlobStorageClient(BaseStorageClient):
             raise Exception("Not using Azure Storage")
 
         sas_permissions = BlobSasPermissions(read=True)
-        start_time = datetime.now()
+        start_time = datetime.now(tz=timezone.utc)
         expiry_time = start_time + timedelta(seconds=EXPIRY_TIME)
 
         sas_token = generate_blob_sas(
@@ -52,10 +55,7 @@ class AzureBlobStorageClient(BaseStorageClient):
         overwrite: bool = True,
     ) -> Dict[str, Any]:
         try:
-            container_client = self.service_client.get_container_client(
-                self.container_name
-            )
-            blob_client = container_client.get_blob_client(object_key)
+            blob_client = self.container_client.get_blob_client(object_key)
 
             if isinstance(data, str):
                 data = data.encode("utf-8")
@@ -78,3 +78,12 @@ class AzureBlobStorageClient(BaseStorageClient):
 
         except Exception as e:
             raise Exception(f"Failed to upload file to Azure Blob Storage: {e!s}")
+
+    async def delete_file(self, object_key: str) -> bool:
+        try:
+            blob_client = self.container_client.get_blob_client(blob=object_key)
+            await blob_client.delete_blob()
+            return True
+        except Exception as e:
+            logger.warn(f"AzureBlobStorageClient, delete_file error: {e}")
+            return False

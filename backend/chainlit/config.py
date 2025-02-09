@@ -96,6 +96,15 @@ edit_message = true
 # Authorize users to spontaneously upload files with messages
 [features.spontaneous_file_upload]
     enabled = true
+    # Define accepted file types using MIME types
+    # Examples:
+    # 1. For specific file types:
+    #    accept = ["image/jpeg", "image/png", "application/pdf"]
+    # 2. For all files of certain type:
+    #    accept = ["image/*", "audio/*", "video/*"]
+    # 3. For specific file extensions:
+    #    accept = {{ "application/octet-stream" = [".xyz", ".pdb"] }}
+    # Note: Using "*/*" is not recommended as it may cause browser warnings
     accept = ["*/*"]
     max_files = 20
     max_size_mb = 500
@@ -118,9 +127,6 @@ name = "Assistant"
 # Chain of Thought (CoT) display mode. Can be "hidden", "tool_call" or "full".
 cot = "full"
 
-# Link to your github repo. This will add a github button in the UI's header.
-# github = ""
-
 # Specify a CSS file that can be used to customize the user interface.
 # The CSS file can be served from the public directory or via an external link.
 # custom_css = "/public/test.css"
@@ -136,6 +142,12 @@ cot = "full"
 # This can be used to customize the frontend code.
 # Be careful: If this is a relative path, it should not start with a slash.
 # custom_build = "./public/build"
+
+# Specify optional one or more custom links in the header.
+# [[UI.header_links]]
+#     name = "Issues"
+#     icon_url = "https://avatars.githubusercontent.com/u/128686189?s=200&v=4"
+#     url = "https://github.com/Chainlit/chainlit/issues"
 
 [meta]
 generated_by = "{__version__}"
@@ -208,6 +220,13 @@ class FeaturesSettings(DataClassJsonMixin):
     edit_message: bool = True
 
 
+@dataclass
+class HeaderLink(DataClassJsonMixin):
+    name: str
+    icon_url: str
+    url: str
+
+
 @dataclass()
 class UISettings(DataClassJsonMixin):
     name: str
@@ -224,6 +243,8 @@ class UISettings(DataClassJsonMixin):
     custom_meta_image_url: Optional[str] = None
     # Optional custom build directory for the frontend
     custom_build: Optional[str] = None
+    # Optional header links
+    header_links: Optional[List[HeaderLink]] = None
 
 
 @dataclass()

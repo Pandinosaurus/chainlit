@@ -74,22 +74,18 @@ from ._utils import is_path_inside
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
 
-ROOT_PATH = os.environ.get("CHAINLIT_ROOT_PATH", "")
-IS_SUBMOUNT = os.environ.get("CHAINLIT_SUBMOUNT", "") == "true"
-# If the app is a submount, no need to set the prefix
-PREFIX = ROOT_PATH if ROOT_PATH and not IS_SUBMOUNT else ""
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Context manager to handle app start and shutdown."""
     host = config.run.host
     port = config.run.port
+    root_path = config.run.root_path
 
     if host == DEFAULT_HOST:
-        url = f"http://localhost:{port}{ROOT_PATH}"
+        url = f"http://localhost:{port}{root_path}"
     else:
-        url = f"http://{host}:{port}{ROOT_PATH}"
+        url = f"http://{host}:{port}{root_path}"
 
     logger.info(f"Your app is available at {url}")
 
@@ -204,7 +200,7 @@ asgi_app = socketio.ASGIApp(
     socketio_path="",
 )
 
-app.mount(f"{PREFIX}/ws/socket.io", asgi_app)
+app.mount("/ws/socket.io", asgi_app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -214,7 +210,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-router = APIRouter(prefix=PREFIX)
+router = APIRouter()
 
 
 @router.get("/public/{filename:path}")
@@ -315,11 +311,11 @@ def replace_between_tags(
     return re.sub(pattern, start_tag + replacement + end_tag, text, flags=re.DOTALL)
 
 
-def get_html_template():
+def get_html_template(root_path):
     """
     Get HTML template for the index view.
     """
-    ROOT_PATH = os.environ.get("CHAINLIT_ROOT_PATH", "")
+    root_path = root_path.rstrip("/")  # Avoid duplicated / when joining with root path.
 
     custom_theme = None
     custom_theme_file_path = Path(public_dir) / "theme.json"
@@ -337,7 +333,6 @@ def get_html_template():
     default_meta_image_url = (
         "https://chainlit-cloud.s3.eu-west-3.amazonaws.com/logo/chainlit_banner.png"
     )
-    url = config.ui.github or default_url
     meta_image_url = config.ui.custom_meta_image_url or default_meta_image_url
     favicon_path = "/favicon"
 
@@ -348,8 +343,8 @@ def get_html_template():
     <meta property="og:title" content="{config.ui.name}">
     <meta property="og:description" content="{config.ui.description}">
     <meta property="og:image" content="{meta_image_url}">
-    <meta property="og:url" content="{url}">
-    <meta property="og:root_path" content="{ROOT_PATH}">"""
+    <meta property="og:url" content="{default_url}">
+    <meta property="og:root_path" content="{root_path}">"""
 
     js = f"""<script>
 {f"window.theme = {json.dumps(custom_theme.get('variables'))};" if custom_theme and custom_theme.get("variables") else "undefined"}
@@ -385,9 +380,8 @@ def get_html_template():
             content = replace_between_tags(
                 content, "<!-- FONT START -->", "<!-- FONT END -->", font
             )
-        if ROOT_PATH:
-            content = content.replace('href="/', f'href="{ROOT_PATH}/')
-            content = content.replace('src="/', f'src="{ROOT_PATH}/')
+        content = content.replace('href="/', f'href="{root_path}/')
+        content = content.replace('src="/', f'src="{root_path}/')
         return content
 
 
@@ -445,22 +439,19 @@ def _get_auth_response(access_token: str, redirect_to_callback: bool) -> Respons
     return JSONResponse(response_dict)
 
 
-def _get_oauth_redirect_error(error: str) -> Response:
+def _get_oauth_redirect_error(request: Request, error: str) -> Response:
     """Get the redirect response for an OAuth error."""
     params = urllib.parse.urlencode(
         {
             "error": error,
         }
     )
-    response = RedirectResponse(
-        # FIXME: redirect to the right frontend base url to improve the dev environment
-        url=f"/login?{params}",  # Shouldn't there be {root_path} here?
-    )
+    response = RedirectResponse(url=str(request.url_for("login")) + "?" + params)
     return response
 
 
 async def _authenticate_user(
-    user: Optional[User], redirect_to_callback: bool = False
+    request: Request, user: Optional[User], redirect_to_callback: bool = False
 ) -> Response:
     """Authenticate a user and return the response."""
 
@@ -483,13 +474,17 @@ async def _authenticate_user(
 
     response = _get_auth_response(access_token, redirect_to_callback)
 
-    set_auth_cookie(response, access_token)
+    set_auth_cookie(request, response, access_token)
 
     return response
 
 
 @router.post("/login")
-async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(
+    request: Request,
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+):
     """
     Login a user using the password auth callback.
     """
@@ -502,13 +497,13 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
         form_data.username, form_data.password
     )
 
-    return await _authenticate_user(user)
+    return await _authenticate_user(request, user)
 
 
 @router.post("/logout")
 async def logout(request: Request, response: Response):
     """Logout the user by calling the on_logout callback."""
-    clear_auth_cookie(response)
+    clear_auth_cookie(request, response)
 
     if config.code.on_logout:
         return await config.code.on_logout(request, response)
@@ -540,7 +535,7 @@ async def jwt_auth(request: Request):
 
     try:
         user = decode_jwt(token)
-        return await _authenticate_user(user)
+        return await _authenticate_user(request, user)
     except InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -556,7 +551,7 @@ async def header_auth(request: Request):
 
     user = await config.code.header_auth_callback(request.headers)
 
-    return await _authenticate_user(user)
+    return await _authenticate_user(request, user)
 
 
 @router.get("/auth/oauth/{provider_id}")
@@ -618,7 +613,7 @@ async def oauth_callback(
         )
 
     if error:
-        return _get_oauth_redirect_error(error)
+        return _get_oauth_redirect_error(request, error)
 
     if not code or not state:
         raise HTTPException(
@@ -645,7 +640,7 @@ async def oauth_callback(
         provider_id, token, raw_user_data, default_user
     )
 
-    response = await _authenticate_user(user, redirect_to_callback=True)
+    response = await _authenticate_user(request, user, redirect_to_callback=True)
 
     clear_oauth_state_cookie(response)
 
@@ -677,7 +672,7 @@ async def oauth_azure_hf_callback(
         )
 
     if error:
-        return _get_oauth_redirect_error(error)
+        return _get_oauth_redirect_error(request, error)
 
     if not code:
         raise HTTPException(
@@ -694,7 +689,7 @@ async def oauth_azure_hf_callback(
         provider_id, token, raw_user_data, default_user, id_token
     )
 
-    response = await _authenticate_user(user, redirect_to_callback=True)
+    response = await _authenticate_user(request, user, redirect_to_callback=True)
 
     clear_oauth_state_cookie(response)
 
@@ -899,7 +894,7 @@ async def update_thread_element(
     """Update a specific thread element."""
 
     from chainlit.context import init_ws_context
-    from chainlit.element import CustomElement, ElementDict
+    from chainlit.element import Element, ElementDict
     from chainlit.session import WebsocketSession
 
     session = WebsocketSession.get_by_id(payload.sessionId)
@@ -910,17 +905,7 @@ async def update_thread_element(
     if element_dict["type"] != "custom":
         return {"success": False}
 
-    element = CustomElement(
-        id=element_dict["id"],
-        object_key=element_dict["objectKey"],
-        chainlit_key=element_dict["chainlitKey"],
-        url=element_dict["url"],
-        for_id=element_dict.get("forId") or "",
-        thread_id=element_dict.get("threadId") or "",
-        name=element_dict["name"],
-        props=element_dict.get("props") or {},
-        display=element_dict["display"],
-    )
+    element = Element.from_dict(element_dict)
 
     if current_user:
         if (
@@ -932,7 +917,7 @@ async def update_thread_element(
                 detail="You are not authorized to update elements for this session",
             )
 
-    await element.send(for_id=element.for_id or "")
+    await element.update()
     return {"success": True}
 
 
@@ -1062,14 +1047,14 @@ async def call_action(
             context.session.has_first_interaction = True
             asyncio.create_task(context.emitter.init_thread(action.name))
 
-        await callback(action)
+        response = await callback(action)
     else:
         raise HTTPException(
             status_code=404,
             detail=f"No callback found for action {action.name}",
         )
 
-    return JSONResponse(content={"success": True})
+    return JSONResponse(content={"success": True, "response": response})
 
 
 @router.post("/project/file")
@@ -1123,11 +1108,14 @@ def validate_file_upload(file: UploadFile):
     Raises:
         ValueError: If the file is not allowed.
     """
-    if config.features.spontaneous_file_upload is None:
-        """Default for a missing config is to allow the fileupload without any restrictions"""
-        return
-    if config.features.spontaneous_file_upload.enabled is False:
-        raise ValueError("File upload is not enabled")
+    # TODO: This logic/endpoint is shared across spontaneous uploads and the AskFileMessage API.
+    # Commenting this check until we find a better solution
+
+    # if config.features.spontaneous_file_upload is None:
+    #     """Default for a missing config is to allow the fileupload without any restrictions"""
+    #     return
+    # if not config.features.spontaneous_file_upload.enabled:
+    #     raise ValueError("File upload is not enabled")
 
     validate_file_mime_type(file)
     validate_file_size(file)
@@ -1140,14 +1128,19 @@ def validate_file_mime_type(file: UploadFile):
     Raises:
         ValueError: If the file type is not allowed.
     """
-    accept = config.features.spontaneous_file_upload.accept
-    if accept is None:
+
+    if (
+        config.features.spontaneous_file_upload is None
+        or config.features.spontaneous_file_upload.accept is None
+    ):
         "Accept is not configured, allowing all file types"
         return
 
-    assert (
-        isinstance(accept, List) or isinstance(accept, dict)
-    ), "Invalid configuration for spontaneous_file_upload, accept must be a list or a dict"
+    accept = config.features.spontaneous_file_upload.accept
+
+    assert isinstance(accept, List) or isinstance(accept, dict), (
+        "Invalid configuration for spontaneous_file_upload, accept must be a list or a dict"
+    )
 
     if isinstance(accept, List):
         for pattern in accept:
@@ -1171,7 +1164,10 @@ def validate_file_size(file: UploadFile):
     Raises:
         ValueError: If the file size is too large.
     """
-    if config.features.spontaneous_file_upload.max_size_mb is None:
+    if (
+        config.features.spontaneous_file_upload is None
+        or config.features.spontaneous_file_upload.max_size_mb is None
+    ):
         return
 
     if (
@@ -1287,9 +1283,9 @@ def status_check():
 
 
 @router.get("/{full_path:path}")
-async def serve():
-    html_template = get_html_template()
+async def serve(request: Request):
     """Serve the UI files."""
+    html_template = get_html_template(request.scope["root_path"])
     response = HTMLResponse(content=html_template, status_code=200)
 
     return response

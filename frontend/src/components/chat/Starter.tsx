@@ -19,8 +19,10 @@ interface StarterProps {
 export default function Starter({ starter }: StarterProps) {
   const apiClient = useContext(ChainlitContext);
   const { sendMessage } = useChatInteract();
-  const { loading } = useChatData();
+  const { loading, connected } = useChatData();
   const { user } = useAuth();
+
+  const disabled = loading || !connected;
 
   const onSubmit = useCallback(async () => {
     const message: IStep = {
@@ -29,7 +31,8 @@ export default function Starter({ starter }: StarterProps) {
       name: user?.identifier || 'User',
       type: 'user_message',
       output: starter.message,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      metadata: { location: window.location.href }
     };
 
     sendMessage(message, []);
@@ -40,7 +43,7 @@ export default function Starter({ starter }: StarterProps) {
       id={`starter-${starter.label.trim().toLowerCase().replaceAll(' ', '-')}`}
       variant="outline"
       className="w-fit justify-start rounded-3xl"
-      disabled={loading}
+      disabled={disabled}
       onClick={onSubmit}
     >
       <div className="flex gap-2">

@@ -20,7 +20,6 @@ import {
 
 import { useLayoutMaxWidth } from 'hooks/useLayoutMaxWidth';
 
-import Alert from './Alert';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Loader } from './Loader';
 import { Messages } from './chat/Messages';
@@ -33,7 +32,7 @@ const ReadOnlyThread = ({ id }: Props) => {
   const { config } = useConfig();
   const {
     data: thread,
-    error,
+    error: threadError,
     isLoading
   } = useApi<IThread>(id ? `/project/thread/${id}` : null, {
     revalidateOnFocus: false
@@ -52,6 +51,13 @@ const ReadOnlyThread = ({ id }: Props) => {
     }
     setSteps(thread.steps);
   }, [thread]);
+
+  useEffect(() => {
+    if (threadError) {
+      navigate('/');
+      toast.error('Failed to load thread: ' + threadError.message);
+    }
+  }, [threadError]);
 
   const onFeedbackUpdated = useCallback(
     async (message: IStep, onSuccess: () => void, feedback: IFeedback) => {
@@ -87,7 +93,7 @@ const ReadOnlyThread = ({ id }: Props) => {
   const onFeedbackDeleted = useCallback(
     async (message: IStep, onSuccess: () => void, feedbackId: string) => {
       toast.promise(apiClient.deleteFeedback(feedbackId), {
-        loading: t('components.organisms.chat.Messages.index.updating'),
+        loading: t('chat.messages.feedback.status.updating'),
         success: () => {
           setSteps((prev) =>
             prev.map((step) => {
@@ -102,7 +108,7 @@ const ReadOnlyThread = ({ id }: Props) => {
           );
 
           onSuccess();
-          return t('components.organisms.chat.Messages.index.feedbackUpdated');
+          return t('chat.messages.feedback.status.updated');
         },
         error: (err) => {
           return <span>{err.message}</span>;
@@ -115,7 +121,7 @@ const ReadOnlyThread = ({ id }: Props) => {
   const onElementRefClick = useCallback(
     (element: IMessageElement) => {
       if (element.display === 'side') {
-        setSideView(element);
+        setSideView({ title: element.name, elements: [element] });
         return;
       }
 
@@ -140,6 +146,7 @@ const ReadOnlyThread = ({ id }: Props) => {
     return {
       allowHtml: config?.features?.unsafe_allow_html,
       latex: config?.features?.latex,
+      editable: false,
       loading: false,
       showFeedbackButtons: !!config?.dataPersistence,
       uiName: config?.ui?.name || '',
@@ -173,8 +180,6 @@ const ReadOnlyThread = ({ id }: Props) => {
 
   return (
     <div className="flex w-full flex-col flex-grow relative overflow-y-auto">
-      {error ? <Alert variant="error">{error.message}</Alert> : null}
-
       <ErrorBoundary>
         <MessageContext.Provider value={memoizedContext}>
           <div
