@@ -2,13 +2,15 @@ import { cn } from '@/lib/utils';
 import { Ellipsis, Trash } from 'lucide-react';
 
 import { Pencil } from '@/components/icons/Pencil';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+
+import { Translator } from '../i18n';
 
 interface Props {
   onDelete: () => void;
@@ -24,21 +26,20 @@ export default function ThreadOptions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
+        <div
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
           }}
           id="thread-options"
           className={cn(
+            buttonVariants({ variant: 'ghost', size: 'icon' }),
             'focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground',
             className
           )}
         >
           <Ellipsis />
-        </Button>
+        </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-20" align="start" forceMount>
         <DropdownMenuItem
@@ -48,7 +49,7 @@ export default function ThreadOptions({
             onRename();
           }}
         >
-          Rename
+          <Translator path="threadHistory.thread.menu.rename" />
           <Pencil className="ml-auto" />
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -59,7 +60,7 @@ export default function ThreadOptions({
           }}
           className="text-red-500 focus:text-red-500"
         >
-          Delete
+          <Translator path="threadHistory.thread.menu.delete" />
           <Trash className="ml-auto" />
         </DropdownMenuItem>
       </DropdownMenuContent>

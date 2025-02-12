@@ -45,7 +45,7 @@ const MessagesContainer = ({ navigate }: Props) => {
   const onFeedbackUpdated = useCallback(
     async (message: IStep, onSuccess: () => void, feedback: IFeedback) => {
       toast.promise(apiClient.setFeedback(feedback), {
-        loading: t('components.organisms.chat.Messages.index.updating'),
+        loading: t('chat.messages.feedback.status.updating'),
         success: (res) => {
           setMessages((prev) =>
             updateMessageById(prev, message.id, {
@@ -57,7 +57,7 @@ const MessagesContainer = ({ navigate }: Props) => {
             })
           );
           onSuccess();
-          return t('components.organisms.chat.Messages.index.feedbackUpdated');
+          return t('chat.messages.feedback.status.updated');
         },
         error: (err) => {
           return <span>{err.message}</span>;
@@ -70,7 +70,7 @@ const MessagesContainer = ({ navigate }: Props) => {
   const onFeedbackDeleted = useCallback(
     async (message: IStep, onSuccess: () => void, feedbackId: string) => {
       toast.promise(apiClient.deleteFeedback(feedbackId), {
-        loading: t('components.organisms.chat.Messages.index.updating'),
+        loading: t('chat.messages.feedback.status.updating'),
         success: () => {
           setMessages((prev) =>
             updateMessageById(prev, message.id, {
@@ -79,7 +79,7 @@ const MessagesContainer = ({ navigate }: Props) => {
             })
           );
           onSuccess();
-          return t('components.organisms.chat.Messages.index.feedbackUpdated');
+          return t('chat.messages.feedback.status.updated');
         },
         error: (err) => {
           return <span>{err.message}</span>;
@@ -95,7 +95,7 @@ const MessagesContainer = ({ navigate }: Props) => {
         element.display === 'side' ||
         (element.display === 'page' && !navigate)
       ) {
-        setSideView(element);
+        setSideView({ title: element.name, elements: [element] });
         return;
       }
 
@@ -122,6 +122,7 @@ const MessagesContainer = ({ navigate }: Props) => {
       askUser,
       allowHtml: config?.features?.unsafe_allow_html,
       latex: config?.features?.latex,
+      editable: !!config?.features.edit_message,
       loading,
       showFeedbackButtons: enableFeedback,
       uiName: config?.ui?.name || '',
@@ -147,6 +148,7 @@ const MessagesContainer = ({ navigate }: Props) => {
     <MessageContext.Provider value={memoizedContext}>
       <Messages
         indent={0}
+        isRunning={loading}
         messages={messages}
         elements={elements}
         actions={actions}

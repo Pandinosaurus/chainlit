@@ -4,6 +4,145 @@ All notable changes to Chainlit will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.2.0] - 2025-02-08
+
+### Added
+
+- You can now add custom buttons in the header
+
+### Fixed
+
+- Step open/close is now animated
+- prevent unstyled flash when streaming code blocks
+- Docking/undocking scroll while streaming show now work better
+
+## [2.1.2] - 2025-02-05
+
+### Fixed
+- The default loader should now be displayed if the chat is running and no response is yet sent
+- Pasting HTML in the chat input show now work
+- React warnings and accessibility issues
+- Command filtering now works with `includes` instead of `startWith`
+- The submit button should be disabled in the chat input is empty
+
+## [2.1.1] - 2025-02-03
+
+### Fixed
+
+- Reintroduce including URL location after UI refactor
+- Ensure SAS token start time is set to UTC
+- Prevent showing 0's on resumed thread if AskAction/File was used
+- Remove 22px element ref height
+- Update Microsoft OAuth offline_access scope to be fully qualified with the prefix
+
+## [2.1.0] - 2025-01-30
+
+### Added
+
+- You can now send toasts with `cl.context.emitter.send_toast`
+- Markdown now supports alerts
+- Theme options are now translatable
+- Copilot can now load custom css
+
+### Fixed
+
+- Mounting Chainlit as a sub app should no longer break the parent's app endpoints
+- Pasting text in the chat input should now remove extra formatting and preserve new lines
+
+
+## [2.0.603] - 2025-01-28
+
+### Added
+
+- Data layer initialization to the telemetry
+
+### Fixed
+
+- Gap between the word `Used` and tool name in step name
+
+## [2.0.602] - 2025-01-27
+
+### Fixed
+
+- Chat input should now auto focus
+- When unfolding a step, the `Output` title should only show if there is an input to display
+
+## [2.0.601] - 2025-01-25
+
+### Fixed
+
+- Element sidebar should take full height
+
+## [2.0.6] - 2025-01-24
+
+### Added
+
+- The element sidebar is now controllable from the python code
+
+### Fixed
+- The auth cookie no longer has a maximal size
+- Pasting text in the chat input should now work
+- Long text in AskAction buttons are now gracefully displayed
+- Server connection error translation path
+
+## [2.0.5] - 2025-01-21
+
+### Added
+
+- Chat GPT like commands
+- Translation options. The translation schema has been simplified
+
+### Fixed
+
+- Warnings around file upload mime types
+- `uvicorn` and `packaging` version requirement have been relaxed
+
+## [2.0.4] - 2025-01-17
+
+### Added
+- Overhaul element reference link styling
+- Japanese translations
+- Improved Chinese translations
+- Translations for feedback buttons
+
+
+### Fixed
+- Cookie max age should now correctly use the config `user_session_timeout` field
+- Thread grouping in the chat history should now correctly handle timezones
+- File from `AskFileMessage` should now share ID with the data layer
+- Data layer boolean casting issues
+- Chat settings modal scrolling issue
+
+## [2.0.3] - 2025-01-14
+
+### Added
+
+- `CustomElement.update()` to update a custom element props server side
+- Translation for the copy button
+
+### Fixed
+- The official data layer should not overwrite elements anymore
+- A bug where resuming a thread would not load the thread
+- Prevent authentication before the app is fully loaded
+- Installing Chainlit from github should work again
+- `tool` steps should count as a thread start
+
+## [2.0.2] - 2025-01-10
+
+### Added
+
+- `http_cookie` is now available in the user session and websocket session
+
+### Fixed
+- Chat profile description on the welcome screen now supports custom html and latex
+- Thread history batch size has been increased to 35 to ensure scroll on a taller screens
+- Chat settings modal should now scroll if too tall
+- Errors in thread resume (like thread not found) now properly redirects to the the home page
+- Elements like Dataframe, Plotly or text should now load correctly from cloud storages
+- AskFileMessage is now usable even if spontaneous uploads are disabled
+- Remove element objects from cloud storage on thread removal (Official & SQLAlchemy data layers)
+- Fix custom element `props` storage for SQL Alchemy data layer
+
 ## [2.0.1] - 2025-01-09
 
 ### Added

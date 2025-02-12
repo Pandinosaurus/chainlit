@@ -175,9 +175,9 @@ class ChainlitDataLayer(BaseDataLayer):
             raise ValueError("Element url, path or content must be provided")
 
         if element.thread_id:
-            path = f"threads/{element.thread_id}/files/{element.name}"
+            path = f"threads/{element.thread_id}/files/{element.id}"
         else:
-            path = f"files/{element.name}"
+            path = f"files/{element.id}"
 
         if content is not None:
             await self.storage_client.upload_file(
@@ -194,6 +194,8 @@ class ChainlitDataLayer(BaseDataLayer):
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
         )
+        ON CONFLICT (id) DO UPDATE SET
+            props = EXCLUDED.props
         """
         params = {
             "id": element.id,
@@ -260,10 +262,21 @@ class ChainlitDataLayer(BaseDataLayer):
     @queue_until_user_message()
     async def delete_element(self, element_id: str, thread_id: Optional[str] = None):
         query = """
+        SELECT * FROM "Element"
+        WHERE id = $1
+        """
+        elements = await self.execute_query(query, {"id": element_id})
+
+        if self.storage_client is not None and len(elements) > 0:
+            if elements[0]["objectKey"]:
+                await self.storage_client.delete_file(
+                    object_key=elements[0]["objectKey"]
+                )
+        query = """
         DELETE FROM "Element" 
         WHERE id = $1
         """
-        params = {"element_id": element_id}
+        params = {"id": element_id}
 
         if thread_id:
             query += ' AND "threadId" = $2'
@@ -339,7 +352,7 @@ class ChainlitDataLayer(BaseDataLayer):
             "type": step_dict["type"],
             "start_time": timestamp,
             "end_time": timestamp,
-            "show_input": step_dict.get("showInput", "json"),
+            "show_input": str(step_dict.get("showInput", "json")),
             "is_error": step_dict.get("isError", False),
         }
         await self.execute_query(query, params)
@@ -375,6 +388,19 @@ class ChainlitDataLayer(BaseDataLayer):
         return results[0]["identifier"]
 
     async def delete_thread(self, thread_id: str):
+        elements_query = """
+        SELECT * FROM "Element" 
+        WHERE "threadId" = $1
+        """
+        elements_results = await self.execute_query(
+            elements_query, {"thread_id": thread_id}
+        )
+
+        if self.storage_client is not None:
+            for elem in elements_results:
+                if elem["objectKey"]:
+                    await self.storage_client.delete_file(object_key=elem["objectKey"])
+
         await self.execute_query(
             'DELETE FROM "Thread" WHERE id = $1', {"thread_id": thread_id}
         )
@@ -506,13 +532,15 @@ class ChainlitDataLayer(BaseDataLayer):
         if self.show_logger:
             logger.info(f"asyncpg: update_thread, thread_id={thread_id}")
 
+        thread_name = truncate(
+            name
+            if name is not None
+            else (metadata.get("name") if metadata and "name" in metadata else None)
+        )
+
         data = {
             "id": thread_id,
-            "name": (
-                name
-                if name is not None
-                else (metadata.get("name") if metadata and "name" in metadata else None)
-            ),
+            "name": thread_name,
             "userId": user_id,
             "tags": tags,
             "metadata": json.dumps(metadata or {}),
@@ -523,7 +551,7 @@ class ChainlitDataLayer(BaseDataLayer):
 
         # Build the query dynamically based on available fields
         columns = [f'"{k}"' for k in data.keys()]
-        placeholders = [f"${i+1}" for i in range(len(data))]
+        placeholders = [f"${i + 1}" for i in range(len(data))]
         values = list(data.values())
 
         update_sets = [f'"{k}" = EXCLUDED."{k}"' for k in data.keys() if k != "id"]
@@ -582,3 +610,7 @@ class ChainlitDataLayer(BaseDataLayer):
         """Cleanup database connections"""
         if self.pool:
             await self.pool.close()
+
+
+def truncate(text: Optional[str], max_length: int = 255) -> Optional[str]:
+    return None if text is None else text[:max_length]

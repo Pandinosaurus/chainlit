@@ -25,6 +25,7 @@ from pydantic.dataclasses import dataclass
 InputWidgetType = Literal[
     "switch", "slider", "select", "textinput", "tags", "numberinput"
 ]
+ToastType = Literal["info", "success", "warning", "error"]
 
 
 class ThreadDict(TypedDict):
@@ -247,6 +248,15 @@ class ChatProfile(DataClassJsonMixin):
 
 
 FeedbackStrategy = Literal["BINARY"]
+
+
+class CommandDict(TypedDict):
+    # The identifier of the command, will be displayed in the UI
+    id: str
+    # The description of the command, will be displayed in the UI
+    description: str
+    # The lucide icon name
+    icon: str
 
 
 class FeedbackDict(TypedDict):

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSetRecoilState } from 'recoil';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,7 +29,7 @@ const Chat = () => {
   const layoutMaxWidth = useLayoutMaxWidth();
   const setAttachments = useSetRecoilState(attachmentsState);
   const setThreads = useSetRecoilState(threadHistoryState);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const autoScrollRef = useRef(true);
   const { error, disabled, callFn } = useChatData();
   const { uploadFile } = useChatInteract();
   const uploadFileRef = useRef(uploadFile);
@@ -165,16 +165,13 @@ const Chat = () => {
         {error ? (
           <div className="w-full mx-auto my-2">
             <Alert className="mx-2" id="session-error" variant="error">
-              <Translator path="components.organisms.chat.index.couldNotReachServer" />
+              <Translator path="common.status.error.serverConnection" />
             </Alert>
           </div>
         ) : null}
         <ChatSettingsModal />
         <ErrorBoundary>
-          <ScrollContainer
-            autoScroll={autoScroll}
-            setAutoScroll={setAutoScroll}
-          >
+          <ScrollContainer autoScrollRef={autoScrollRef}>
             <div
               className="flex flex-col mx-auto w-full flex-grow px-4 pt-4"
               style={{
@@ -197,8 +194,7 @@ const Chat = () => {
               fileSpec={fileSpec}
               onFileUpload={onFileUpload}
               onFileUploadError={onFileUploadError}
-              setAutoScroll={setAutoScroll}
-              autoScroll={autoScroll}
+              autoScrollRef={autoScrollRef}
             />
           </div>
         </ErrorBoundary>

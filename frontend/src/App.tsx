@@ -25,7 +25,7 @@ declare global {
 function App() {
   const { config } = useConfig();
 
-  const { isAuthenticated, data } = useAuth();
+  const { isAuthenticated, data, isReady } = useAuth();
   const userEnv = useRecoilValue(userEnvState);
   const { connect, chatProfile, setChatProfile } = useChatSession();
 
@@ -38,29 +38,36 @@ function App() {
     : false;
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !isReady || !chatProfileOk) {
       return;
-    } else if (!chatProfileOk) {
-      return;
-    } else {
-      connect({
-        transports: window.transports,
-        userEnv
-      });
     }
-  }, [userEnv, isAuthenticated, connect, chatProfileOk]);
 
-  if (configLoaded && config.chatProfiles.length && !chatProfile) {
-    // Autoselect the first default chat profile
+    connect({
+      transports: window.transports,
+      userEnv
+    });
+  }, [userEnv, isAuthenticated, connect, isReady, chatProfileOk]);
+
+  useEffect(() => {
+    if (
+      !configLoaded ||
+      !config ||
+      !config.chatProfiles?.length ||
+      chatProfile
+    ) {
+      return;
+    }
+
     const defaultChatProfile = config.chatProfiles.find(
       (profile) => profile.default
     );
+
     if (defaultChatProfile) {
       setChatProfile(defaultChatProfile.name);
     } else {
       setChatProfile(config.chatProfiles[0].name);
     }
-  }
+  }, [configLoaded, config, chatProfile, setChatProfile]);
 
   if (!configLoaded && isAuthenticated) return null;
 
@@ -69,7 +76,7 @@ function App() {
       storageKey="vite-ui-theme"
       defaultTheme={data?.default_theme}
     >
-      <Toaster className="toast" position="top-right" />
+      <Toaster richColors className="toast" position="top-right" />
 
       <ChatSettingsModal />
       <RouterProvider router={router} />
